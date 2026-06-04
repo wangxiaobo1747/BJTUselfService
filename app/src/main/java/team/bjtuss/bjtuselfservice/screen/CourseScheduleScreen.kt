@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import team.bjtuss.bjtuselfservice.entity.CourseEntity
+import team.bjtuss.bjtuselfservice.repository.DataStoreRepository
 import team.bjtuss.bjtuselfservice.utils.Utils
 import team.bjtuss.bjtuselfservice.viewmodel.DataChange
 import team.bjtuss.bjtuselfservice.viewmodel.MainViewModel
@@ -103,8 +105,14 @@ fun CourseScheduleScreen(
 ) {
     val courseScheduleViewModel = mainViewModel.courseScheduleViewModel
     val classroomViewModel = mainViewModel.classroomViewModel
+    val storedCurrentWeek by DataStoreRepository.getCurrentWeek().collectAsState(0)
     LaunchedEffect(Unit) {
         courseScheduleViewModel.syncDataAndClearChange()
+    }
+    LaunchedEffect(storedCurrentWeek) {
+        if (storedCurrentWeek <= 0) {
+            classroomViewModel.refreshClassroomMap()
+        }
     }
     val courseChangeList: List<DataChange<CourseEntity>> by courseScheduleViewModel.changeList.collectAsState()
 
@@ -125,13 +133,28 @@ fun CourseScheduleScreen(
 
     var expanded by remember { mutableStateOf(false) }
 
-    var currentTerm by remember { mutableStateOf(false) }
+    var currentTerm by rememberSaveable { mutableStateOf(false) }
     val allWeeks = listOf("全部") + (1..26).map { "第${it}周" }
-    var showWeekSelector by remember { mutableStateOf(false) }
-    val classroomMap = classroomViewModel.classroomMap.collectAsState()
-    var selectedWeek by remember { mutableIntStateOf(classroomMap.value["nowWeek"]?.get(0) ?: 0) }
+    var showWeekSelector by rememberSaveable { mutableStateOf(false) }
+    val classroomMap by classroomViewModel.classroomMap.collectAsState()
+    val currentWeek = storedCurrentWeek.takeIf { it > 0 }
+        ?: classroomMap["nowWeek"]?.firstOrNull()
+        ?: 0
+    var selectedWeek by rememberSaveable { mutableIntStateOf(0) }
+    var shouldFollowCurrentWeek by rememberSaveable { mutableStateOf(true) }
     val courseList by
-    if (currentTerm) courseScheduleViewModel.currentTermCourseList.collectAsState() else courseScheduleViewModel.nextTermCourseList.collectAsState()
+        if (currentTerm) {
+            courseScheduleViewModel.currentTermCourseList.collectAsState()
+        } else {
+            courseScheduleViewModel.nextTermCourseList.collectAsState()
+        }
+
+    LaunchedEffect(currentTerm, currentWeek, shouldFollowCurrentWeek) {
+        if (!currentTerm && shouldFollowCurrentWeek && currentWeek != 0) {
+            selectedWeek = currentWeek
+            shouldFollowCurrentWeek = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -170,10 +193,11 @@ fun CourseScheduleScreen(
                                     onClick = {
                                         currentTerm = !currentTerm
                                         selectedWeek = if (!currentTerm) {
-                                            classroomMap.value["nowWeek"]?.get(0) ?: 0
+                                            currentWeek
                                         } else {
                                             0
                                         }
+                                        shouldFollowCurrentWeek = !currentTerm && currentWeek == 0
                                     }
                                 ),
                                 MenuItem(
@@ -198,6 +222,7 @@ fun CourseScheduleScreen(
                                                         .background(if (index == selectedWeek) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent)
                                                         .clickable {
                                                             selectedWeek = index
+                                                            shouldFollowCurrentWeek = false
                                                             showWeekSelector = false
                                                         }
                                                         .padding(vertical = 12.dp, horizontal = 16.dp),
