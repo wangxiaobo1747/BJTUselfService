@@ -13,3 +13,7 @@
 ## 鸣谢
 
 感谢 [nimisora-homowork-notify](https://github.com/10086mea/nimisora-homowork-notify) 项目提供的邮箱订阅功能。
+
+## 维护者
+
+本仓库 Fork 自 [HFDLYS/BJTUselfService](https://github.com/HFDLYS/BJTUselfService)，由 [wangxiaobo1747](https://github.com/wangxiaobo1747) 维护。
